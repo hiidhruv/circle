@@ -1,118 +1,93 @@
-const { Client } = require('pg');
+const { MongoClient } = require('mongodb');
 
-// Use Railway's DATABASE_URL environment variable
-const connectionString = process.env.DATABASE_URL;
-const client = new Client({ connectionString });
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri, { useUnifiedTopology: true });
+let db;
 
 async function connectDb() {
   try {
     await client.connect();
-    // Create tables if they don't exist
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS blacklisted_users (
-        user_id TEXT PRIMARY KEY,
-        blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS blacklisted_channels (
-        channel_id TEXT PRIMARY KEY,
-        blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS active_channels (
-        channel_id TEXT PRIMARY KEY,
-        activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    console.log('Connected to PostgreSQL database');
+    db = client.db();
+    // Ensure indexes for uniqueness
+    await db.collection('blacklisted_users').createIndex({ user_id: 1 }, { unique: true });
+    await db.collection('blacklisted_channels').createIndex({ channel_id: 1 }, { unique: true });
+    await db.collection('active_channels').createIndex({ channel_id: 1 }, { unique: true });
+    console.log('Connected to MongoDB database');
   } catch (err) {
-    console.error('Error connecting to PostgreSQL:', err.message);
+    console.error('Error connecting to MongoDB:', err.message);
   }
 }
 connectDb();
 
 // Blacklist a user
 async function blacklistUser(userId) {
-  await client.query(
-    'INSERT INTO blacklisted_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
-    [userId]
+  await db.collection('blacklisted_users').updateOne(
+    { user_id: userId },
+    { $set: { user_id: userId, blacklisted_at: new Date() } },
+    { upsert: true }
   );
   return { success: true, userId };
 }
 
 // Whitelist a user
 async function whitelistUser(userId) {
-  const res = await client.query(
-    'DELETE FROM blacklisted_users WHERE user_id = $1',
-    [userId]
-  );
-  return { success: true, userId, changes: res.rowCount };
+  const res = await db.collection('blacklisted_users').deleteOne({ user_id: userId });
+  return { success: true, userId, changes: res.deletedCount };
 }
 
 // Check if a user is blacklisted
 async function isUserBlacklisted(userId) {
-  const res = await client.query(
-    'SELECT user_id FROM blacklisted_users WHERE user_id = $1',
-    [userId]
-  );
-  return res.rowCount > 0;
+  const user = await db.collection('blacklisted_users').findOne({ user_id: userId });
+  return !!user;
 }
 
 // Blacklist a channel
 async function blacklistChannel(channelId) {
-  await client.query(
-    'INSERT INTO blacklisted_channels (channel_id) VALUES ($1) ON CONFLICT (channel_id) DO NOTHING',
-    [channelId]
+  await db.collection('blacklisted_channels').updateOne(
+    { channel_id: channelId },
+    { $set: { channel_id: channelId, blacklisted_at: new Date() } },
+    { upsert: true }
   );
   return { success: true, channelId };
 }
 
 // Whitelist a channel
 async function whitelistChannel(channelId) {
-  const res = await client.query(
-    'DELETE FROM blacklisted_channels WHERE channel_id = $1',
-    [channelId]
-  );
-  return { success: true, channelId, changes: res.rowCount };
+  const res = await db.collection('blacklisted_channels').deleteOne({ channel_id: channelId });
+  return { success: true, channelId, changes: res.deletedCount };
 }
 
 // Check if a channel is blacklisted
 async function isChannelBlacklisted(channelId) {
-  const res = await client.query(
-    'SELECT channel_id FROM blacklisted_channels WHERE channel_id = $1',
-    [channelId]
-  );
-  return res.rowCount > 0;
+  const channel = await db.collection('blacklisted_channels').findOne({ channel_id: channelId });
+  return !!channel;
 }
 
 // Set a channel as active
 async function activateChannel(channelId) {
-  await client.query(
-    'INSERT INTO active_channels (channel_id) VALUES ($1) ON CONFLICT (channel_id) DO NOTHING',
-    [channelId]
+  await db.collection('active_channels').updateOne(
+    { channel_id: channelId },
+    { $set: { channel_id: channelId, activated_at: new Date() } },
+    { upsert: true }
   );
   return { success: true, channelId };
 }
 
 // Deactivate a channel
 async function deactivateChannel(channelId) {
-  const res = await client.query(
-    'DELETE FROM active_channels WHERE channel_id = $1',
-    [channelId]
-  );
-  return { success: true, channelId, changes: res.rowCount };
+  const res = await db.collection('active_channels').deleteOne({ channel_id: channelId });
+  return { success: true, channelId, changes: res.deletedCount };
 }
 
 // Check if a channel is active
 async function isChannelActive(channelId) {
-  const res = await client.query(
-    'SELECT channel_id FROM active_channels WHERE channel_id = $1',
-    [channelId]
-  );
-  return res.rowCount > 0;
+  const channel = await db.collection('active_channels').findOne({ channel_id: channelId });
+  return !!channel;
 }
 
 // Close database connection
 async function closeDatabase() {
-  await client.end();
+  await client.close();
 }
 
 module.exports = {
