@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+/data/*.db
+/data/*.sqlite
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+.vscode/
+coverage/
+*.log
+*.env
