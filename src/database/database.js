@@ -1,180 +1,122 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Client } = require('pg');
 
-// Create and initialize the database
-const dbPath = path.join(__dirname, '../../data/tenshi.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error connecting to database:', err.message);
-  } else {
-    // Initialize database tables
-    initDb();
+// Use Railway's DATABASE_URL environment variable
+const connectionString = process.env.DATABASE_URL;
+const client = new Client({ connectionString });
+
+async function connectDb() {
+  try {
+    await client.connect();
+    // Create tables if they don't exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS blacklisted_users (
+        user_id TEXT PRIMARY KEY,
+        blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS blacklisted_channels (
+        channel_id TEXT PRIMARY KEY,
+        blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS active_channels (
+        channel_id TEXT PRIMARY KEY,
+        activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Connected to PostgreSQL database');
+  } catch (err) {
+    console.error('Error connecting to PostgreSQL:', err.message);
   }
-});
-
-// Initialize database tables
-function initDb() {
-  db.serialize(() => {
-    // Create blacklisted users table
-    db.run(`CREATE TABLE IF NOT EXISTS blacklisted_users (
-      user_id TEXT PRIMARY KEY,
-      blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Create blacklisted channels table
-    db.run(`CREATE TABLE IF NOT EXISTS blacklisted_channels (
-      channel_id TEXT PRIMARY KEY,
-      blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Create active channels table (for /activate command)
-    db.run(`CREATE TABLE IF NOT EXISTS active_channels (
-      channel_id TEXT PRIMARY KEY,
-      activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-  });
 }
+connectDb();
 
 // Blacklist a user
-function blacklistUser(userId) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare('INSERT OR REPLACE INTO blacklisted_users (user_id) VALUES (?)');
-    stmt.run(userId, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ success: true, userId });
-      }
-    });
-    stmt.finalize();
-  });
+async function blacklistUser(userId) {
+  await client.query(
+    'INSERT INTO blacklisted_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+    [userId]
+  );
+  return { success: true, userId };
 }
 
 // Whitelist a user
-function whitelistUser(userId) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare('DELETE FROM blacklisted_users WHERE user_id = ?');
-    stmt.run(userId, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ success: true, userId, changes: this.changes });
-      }
-    });
-    stmt.finalize();
-  });
+async function whitelistUser(userId) {
+  const res = await client.query(
+    'DELETE FROM blacklisted_users WHERE user_id = $1',
+    [userId]
+  );
+  return { success: true, userId, changes: res.rowCount };
 }
 
 // Check if a user is blacklisted
-function isUserBlacklisted(userId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT user_id FROM blacklisted_users WHERE user_id = ?', [userId], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(!!row);
-      }
-    });
-  });
+async function isUserBlacklisted(userId) {
+  const res = await client.query(
+    'SELECT user_id FROM blacklisted_users WHERE user_id = $1',
+    [userId]
+  );
+  return res.rowCount > 0;
 }
 
 // Blacklist a channel
-function blacklistChannel(channelId) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare('INSERT OR REPLACE INTO blacklisted_channels (channel_id) VALUES (?)');
-    stmt.run(channelId, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ success: true, channelId });
-      }
-    });
-    stmt.finalize();
-  });
+async function blacklistChannel(channelId) {
+  await client.query(
+    'INSERT INTO blacklisted_channels (channel_id) VALUES ($1) ON CONFLICT (channel_id) DO NOTHING',
+    [channelId]
+  );
+  return { success: true, channelId };
 }
 
 // Whitelist a channel
-function whitelistChannel(channelId) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare('DELETE FROM blacklisted_channels WHERE channel_id = ?');
-    stmt.run(channelId, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ success: true, channelId, changes: this.changes });
-      }
-    });
-    stmt.finalize();
-  });
+async function whitelistChannel(channelId) {
+  const res = await client.query(
+    'DELETE FROM blacklisted_channels WHERE channel_id = $1',
+    [channelId]
+  );
+  return { success: true, channelId, changes: res.rowCount };
 }
 
 // Check if a channel is blacklisted
-function isChannelBlacklisted(channelId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT channel_id FROM blacklisted_channels WHERE channel_id = ?', [channelId], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(!!row);
-      }
-    });
-  });
+async function isChannelBlacklisted(channelId) {
+  const res = await client.query(
+    'SELECT channel_id FROM blacklisted_channels WHERE channel_id = $1',
+    [channelId]
+  );
+  return res.rowCount > 0;
 }
 
 // Set a channel as active
-function activateChannel(channelId) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare('INSERT OR REPLACE INTO active_channels (channel_id) VALUES (?)');
-    stmt.run(channelId, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ success: true, channelId });
-      }
-    });
-    stmt.finalize();
-  });
+async function activateChannel(channelId) {
+  await client.query(
+    'INSERT INTO active_channels (channel_id) VALUES ($1) ON CONFLICT (channel_id) DO NOTHING',
+    [channelId]
+  );
+  return { success: true, channelId };
 }
 
 // Deactivate a channel
-function deactivateChannel(channelId) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare('DELETE FROM active_channels WHERE channel_id = ?');
-    stmt.run(channelId, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ success: true, channelId, changes: this.changes });
-      }
-    });
-    stmt.finalize();
-  });
+async function deactivateChannel(channelId) {
+  const res = await client.query(
+    'DELETE FROM active_channels WHERE channel_id = $1',
+    [channelId]
+  );
+  return { success: true, channelId, changes: res.rowCount };
 }
 
 // Check if a channel is active
-function isChannelActive(channelId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT channel_id FROM active_channels WHERE channel_id = ?', [channelId], (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(!!row);
-      }
-    });
-  });
+async function isChannelActive(channelId) {
+  const res = await client.query(
+    'SELECT channel_id FROM active_channels WHERE channel_id = $1',
+    [channelId]
+  );
+  return res.rowCount > 0;
 }
 
 // Close database connection
-function closeDatabase() {
-  db.close((err) => {
-    if (err) {
-      console.error('Error closing database:', err.message);
-    }
-  });
+async function closeDatabase() {
+  await client.end();
 }
 
 module.exports = {
-  db,
+  client,
   blacklistUser,
   whitelistUser,
   isUserBlacklisted,

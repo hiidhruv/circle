@@ -8,13 +8,13 @@
     "dev": "nodemon src/index.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "sqlite3": "^5.1.6",
     "axios": "^1.6.2",
+    "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
-    "openai": "^4.17.0"
+    "openai": "^4.17.0",
+    "pg": "^8.15.6"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   }
-} 
+}
