@@ -1,12 +1,12 @@
 # Circle Bot
 
-A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI chat, and a clean, production-ready codebase.
+A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI chat(image gen too), and a clean shape interchanging system
 
 ---
 
 ## Features
 
-- **AI Chat**: Responds to messages using Shapes Inc (OpenAI SDK or Axios fallback) and optionally Google Gemini.
+- **AI Chat**: Responds to messages using Shapes Inc (OpenAI SDK) and optionally Google Gemini.
 - **Contextual Replies**: Replies to users as Discord replies (no ping).
 - **Owner System**: Only bot owners can use sensitive commands (see below). Main owner is set in `.env`, can add/remove lower-level owners via `/owner` command.
 - **Moderation**: Slash commands for blacklisting, whitelisting, purging, kicking, and banning users.
