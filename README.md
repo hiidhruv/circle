@@ -12,8 +12,7 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
 - **Moderation**: Slash commands for blacklisting, whitelisting, purging, kicking, and banning users.
 - **Channel Modes**: Activate or deactivate channels for full-message AI response.
 - **Logging Control**: Toggle message response logging with `/logging on` and `/logging off`.
-- **Custom Status**: Shows as "Watching ur mom" and always online.
-- **Secure**: No secrets or node_modules in the repo; uses `.env` for all sensitive config.
+- **Custom Status**: Shows as "Watching ur mom" and always online. (edit the code to update)
 - **MongoDB Database**: Uses MongoDB Atlas for persistent, production-ready storage.
 
 ---
