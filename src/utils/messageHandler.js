@@ -2,6 +2,17 @@ const db = require('../database/database');
 const aiService = require('./aiService');
 const loggingCommand = require('../commands/logging');
 
+// Configurable trigger word (default: 'tenshi')
+let triggerWord = 'tenshi';
+
+function setTriggerWord(word) {
+  triggerWord = word.toLowerCase();
+}
+
+function getTriggerWord() {
+  return triggerWord;
+}
+
 /**
  * Handles incoming messages and determines if the bot should respond
  * @param {Object} message - Discord message object
@@ -25,14 +36,14 @@ async function handleMessage(message, client) {
     let shouldRespond = false;
     let reason = '';
     
-    // Check if the message contains "tenshi" or mentions the bot
+    // Check if the message contains the trigger word or mentions the bot
     const mentionsBot = message.mentions.users.has(client.user.id);
-    const containsTenshi = message.content.toLowerCase().includes('tenshi');
+    const containsTrigger = message.content.toLowerCase().includes(triggerWord);
     
     if (mentionsBot) {
       shouldRespond = true;
       reason = 'mentioned';
-    } else if (containsTenshi) {
+    } else if (containsTrigger) {
       shouldRespond = true;
       reason = 'contains_keyword';
     } else {
@@ -86,5 +97,7 @@ async function handleMessage(message, client) {
 }
 
 module.exports = {
-  handleMessage
+  handleMessage,
+  setTriggerWord,
+  getTriggerWord
 }; 

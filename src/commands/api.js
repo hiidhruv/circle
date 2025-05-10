@@ -46,6 +46,9 @@ module.exports = {
     ),
     
   async execute(interaction) {
+    if (!(await aiService.isOwner(interaction.user.id))) {
+      return interaction.reply({ content: 'This command is restricted to bot owners.', ephemeral: true });
+    }
     try {
       const subcommand = interaction.options.getSubcommand();
       

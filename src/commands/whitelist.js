@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const db = require('../database/database');
+const aiService = require('../utils/aiService');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,6 +13,9 @@ module.exports = {
             .setRequired(true)),
   
   async execute(interaction) {
+    if (!(await aiService.isOwner(interaction.user.id))) {
+      return interaction.reply({ content: 'This command is restricted to bot owners.', ephemeral: true });
+    }
     try {
       const targetUser = interaction.options.getUser('user');
       

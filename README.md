@@ -1,4 +1,4 @@
-# Tenshi Sama Bot
+# Circle Bot
 
 A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI chat, and a clean, production-ready codebase.
 
@@ -32,8 +32,8 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
 
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/hiidhruv/tenshi-sama.git
-   cd tenshi-sama
+   git clone https://github.com/hiidhruv/circle.git
+   cd circle
    ```
 
 2. **Install dependencies:**
@@ -65,7 +65,7 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
    # Optional
    OWNER_ID=your_discord_user_id
    GEMINI_API_KEY=your_gemini_api_key
-   TENSHI_SYSTEM_PROMPT=custom_system_prompt
+   CIRCLE_SYSTEM_PROMPT=custom_system_prompt
    ```
 
 5. **Run the bot:**

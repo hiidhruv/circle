@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { OpenAI } = require('openai');
 require('dotenv').config();
+const db = require('../database/database');
 
 // Import the logging command if it exists (with a try/catch to handle circular dependencies)
 let loggingCommand = null;
@@ -18,7 +19,7 @@ function isLoggingEnabled() {
 // Get API key and config - ensuring it's properly set
 const shapesApiKey = process.env.SHAPESINC_API_KEY || process.env.SHAPES_API_KEY;
 const shapesApiUrl = process.env.SHAPES_API_URL || 'https://api.shapes.inc/v1';
-const shapesUsername = process.env.SHAPESINC_SHAPE_USERNAME || process.env.SHAPES_USERNAME || 'tenshi';
+let shapesUsername = process.env.SHAPESINC_SHAPE_USERNAME || process.env.SHAPES_USERNAME || 'tenshi';
 
 // Log minimal startup diagnostic info
 console.log(`API: ${shapesApiUrl} | Shape: ${shapesUsername} | Key: ${shapesApiKey ? '✓' : '✗'}`);
@@ -134,6 +135,24 @@ function getShapesClient() {
 }
 
 /**
+ * Set the current shape username (runtime)
+ * @param {string} username
+ */
+function setShapeUsername(username) {
+  shapesUsername = username;
+  // Persist to DB (async, fire and forget)
+  db.setShapeUsername(username).catch(console.error);
+}
+
+/**
+ * Get the current shape username
+ * @returns {string}
+ */
+function getShapeUsername() {
+  return shapesUsername;
+}
+
+/**
  * Generate AI response using the configured API
  * @param {string} channelId - Discord channel ID
  * @param {string} prompt - User message
@@ -202,7 +221,7 @@ async function generateResponse(channelId, prompt, userId) {
       console.error('API Error Details:', error.response.data);
     }
     
-    return 'Something went wrong and tenshi is cooked';
+    return `Something went wrong and ${getShapeUsername()} is cooked`;
   }
 }
 
@@ -216,13 +235,14 @@ async function generateResponse(channelId, prompt, userId) {
  */
 async function generateShapesResponse(channelId, prompt, userId, context) {
   let aiMessage;
+  const modelUsername = getShapeUsername();
   
   // Check which client implementation to use
   if (shapesClient === 'openai' && isOpenAiSdkAvailable) {
     // OpenAI SDK implementation (recommended)
     try {
       const response = await shapes.chat.completions.create({
-        model: `shapesinc/${shapesUsername}`,
+        model: `shapesinc/${modelUsername}`,
         messages: [
           { role: "user", content: prompt }
         ],
@@ -377,6 +397,33 @@ function shouldRespondRandomly() {
   return Math.random() < 0.2;
 }
 
+// On startup, try to load from DB
+(async () => {
+  try {
+    const dbUsername = await db.getShapeUsername();
+    if (dbUsername) {
+      shapesUsername = dbUsername;
+      console.log(`[aiService] Loaded shape username from DB: ${shapesUsername}`);
+    }
+  } catch (e) {
+    console.warn('[aiService] Could not load shape username from DB:', e.message);
+  }
+})();
+
+const mainOwnerId = process.env.OWNER_ID;
+
+/**
+ * Check if a user is an owner (main or lower-level)
+ * @param {string} userId
+ * @returns {Promise<boolean>}
+ */
+async function isOwner(userId) {
+  if (!userId) return false;
+  if (userId === mainOwnerId) return true;
+  const owners = await db.getOwners();
+  return owners.includes(userId);
+}
+
 module.exports = {
   generateResponse,
   clearMessageContext,
@@ -385,5 +432,8 @@ module.exports = {
   getPrimaryApi,
   setShapesClient,
   getShapesClient,
-  isOpenAiSdkAvailable
+  isOpenAiSdkAvailable,
+  setShapeUsername,
+  getShapeUsername,
+  isOwner
 }; 

@@ -1,7 +1,7 @@
 {
-  "name": "tenshi-sama",
+  "name": "circle",
   "version": "1.0.0",
-  "description": "Discord AI chatbot using Shapes Inc API",
+  "description": "Discord AI chatbot using Shapes Inc API (Circle)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

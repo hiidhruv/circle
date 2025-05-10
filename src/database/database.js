@@ -90,6 +90,64 @@ async function closeDatabase() {
   await client.close();
 }
 
+// --- SHAPE USERNAME CONFIG ---
+
+/**
+ * Set the current shape username
+ * @param {string} username
+ * @returns {Promise<void>}
+ */
+async function setShapeUsername(username) {
+  await db.collection('config').updateOne(
+    { key: 'shape_username' },
+    { $set: { key: 'shape_username', value: username } },
+    { upsert: true }
+  );
+}
+
+/**
+ * Get the current shape username
+ * @returns {Promise<string|null>}
+ */
+async function getShapeUsername() {
+  const doc = await db.collection('config').findOne({ key: 'shape_username' });
+  return doc ? doc.value : null;
+}
+
+/**
+ * Get the list of owner IDs (excluding the main owner from env)
+ * @returns {Promise<string[]>}
+ */
+async function getOwners() {
+  const doc = await db.collection('config').findOne({ key: 'owners' });
+  return doc && Array.isArray(doc.value) ? doc.value : [];
+}
+
+/**
+ * Add an owner ID
+ * @param {string} userId
+ * @returns {Promise<void>}
+ */
+async function addOwner(userId) {
+  await db.collection('config').updateOne(
+    { key: 'owners' },
+    { $addToSet: { value: userId } },
+    { upsert: true }
+  );
+}
+
+/**
+ * Remove an owner ID
+ * @param {string} userId
+ * @returns {Promise<void>}
+ */
+async function removeOwner(userId) {
+  await db.collection('config').updateOne(
+    { key: 'owners' },
+    { $pull: { value: userId } }
+  );
+}
+
 module.exports = {
   client,
   blacklistUser,
@@ -101,5 +159,10 @@ module.exports = {
   activateChannel,
   deactivateChannel,
   isChannelActive,
-  closeDatabase
+  closeDatabase,
+  setShapeUsername,
+  getShapeUsername,
+  getOwners,
+  addOwner,
+  removeOwner
 }; 
