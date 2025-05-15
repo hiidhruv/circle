@@ -6,7 +6,6 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 
 ## Features
 
-- **AI Chat**: Responds to messages using Shapes Inc (OpenAI SDK) and optionally Google Gemini.
 - **AI Chat**: Responds to messages using Shapes Inc API via OpenAI SDK.
 - **Contextual Replies**: Replies to users as Discord replies (no ping).
 - **Owner System**: Only bot owners can use sensitive commands (see below). Main owners are set in `.env` (comma-separated), can add/remove lower-level owners via `/owner` command.
@@ -14,7 +13,6 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 - **Channel Modes**: Activate or deactivate channels for full-message AI response.
 - **Logging Control**: Toggle message response logging with `/logging on` and `/logging off`.
 - **Custom Status**: Shows as "Watching ur mom" and always online. (edit the code to update)
-- **Custom Status**: Shows as "Watching ur mom" and always online.
 - **MongoDB Database**: Uses MongoDB Atlas for persistent, production-ready storage.
 
 ---
