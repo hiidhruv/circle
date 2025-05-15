@@ -82,7 +82,28 @@ async function handleCommandInteraction(interaction) {
   }
 }
 
+// Handle button interactions (for /about pagination)
+async function handleButtonInteraction(interaction) {
+  if (!interaction.isButton()) return;
+  const customId = interaction.customId;
+  
+  if (customId.startsWith('about_')) {
+    // Route to about.js
+    const about = require('../commands/about');
+    if (about.handleButton) {
+      await about.handleButton(interaction);
+    }
+  } else if (customId.startsWith('commands_')) {
+    // Route to commands.js
+    const commands = require('../commands/commands');
+    if (commands.handleButton) {
+      await commands.handleButton(interaction);
+    }
+  }
+}
+
 module.exports = {
   loadCommands,
-  handleCommandInteraction
+  handleCommandInteraction,
+  handleButtonInteraction
 }; 

@@ -35,28 +35,43 @@ async function handleMessage(message, client) {
     // Variables to determine if we should respond
     let shouldRespond = false;
     let reason = '';
-    
-    // Check if the message contains the trigger word or mentions the bot
-    const mentionsBot = message.mentions.users.has(client.user.id);
-    const containsTrigger = message.content.toLowerCase().includes(triggerWord);
-    
-    if (mentionsBot) {
-      shouldRespond = true;
-      reason = 'mentioned';
-    } else if (containsTrigger) {
-      shouldRespond = true;
-      reason = 'contains_keyword';
-    } else {
-      // Check if channel is in active mode
-      const isChannelActive = await db.isChannelActive(message.channel.id);
-      if (isChannelActive) {
+    let content = message.content;
+
+    // Check for DisplayName:content format
+    const member = message.member;
+    if (member) {
+      const displayName = member.displayName;
+      if (content.startsWith(`${displayName}:`)) {
+        content = content.slice(displayName.length + 1).trim();
         shouldRespond = true;
-        reason = 'active_channel';
+        reason = 'display_name';
+      }
+    }
+    
+    // If not already responding, check other triggers
+    if (!shouldRespond) {
+      // Check if the message contains the trigger word or mentions the bot
+      const mentionsBot = message.mentions.users.has(client.user.id);
+      const containsTrigger = content.toLowerCase().includes(triggerWord);
+      
+      if (mentionsBot) {
+        shouldRespond = true;
+        reason = 'mentioned';
+      } else if (containsTrigger) {
+        shouldRespond = true;
+        reason = 'contains_keyword';
       } else {
-        // Random response chance
-        shouldRespond = aiService.shouldRespondRandomly();
-        if (shouldRespond) {
-          reason = 'random';
+        // Check if channel is in active mode
+        const isChannelActive = await db.isChannelActive(message.channel.id);
+        if (isChannelActive) {
+          shouldRespond = true;
+          reason = 'active_channel';
+        } else {
+          // Random response chance
+          shouldRespond = aiService.shouldRespondRandomly();
+          if (shouldRespond) {
+            reason = 'random';
+          }
         }
       }
     }
@@ -71,8 +86,8 @@ async function handleMessage(message, client) {
         const userContent = [];
         
         // Add text content if present
-        if (message.content && message.content.trim() !== '') {
-          userContent.push({ type: 'text', text: message.content.trim() });
+        if (content && content.trim() !== '') {
+          userContent.push({ type: 'text', text: content.trim() });
         }
         
         // Check for image and audio attachments
@@ -102,7 +117,7 @@ async function handleMessage(message, client) {
         
         // If we have no content (unlikely but possible), add a default text prompt
         if (userContent.length === 0) {
-          userContent.push({ type: 'text', text: message.content || 'Hello' });
+          userContent.push({ type: 'text', text: content || 'Hello' });
         }
         
         // Get response from AI using multimodal content

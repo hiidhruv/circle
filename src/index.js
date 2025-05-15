@@ -38,9 +38,13 @@ client.once(Events.ClientReady, async (readyClient) => {
   await commandHandler.loadCommands(readyClient);
 });
 
-// Handle interactions (slash commands)
+// Handle interactions (slash commands and buttons)
 client.on(Events.InteractionCreate, async (interaction) => {
-  await commandHandler.handleCommandInteraction(interaction);
+  if (interaction.isCommand()) {
+    await commandHandler.handleCommandInteraction(interaction);
+  } else if (interaction.isButton()) {
+    await commandHandler.handleButtonInteraction(interaction);
+  }
 });
 
 // Handle messages
