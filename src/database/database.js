@@ -148,6 +148,43 @@ async function removeOwner(userId) {
   );
 }
 
+/**
+ * Set the shape and AI provider for a channel
+ * @param {string} channelId
+ * @param {object} config - { shape_username?: string, ai_provider?: string }
+ * @returns {Promise<void>}
+ */
+async function setChannelShapeConfig(channelId, config) {
+  await db.collection('channel_shape_config').updateOne(
+    { channel_id: channelId },
+    { $set: { channel_id: channelId, ...config } },
+    { upsert: true }
+  );
+}
+
+/**
+ * Get the shape and AI provider config for a channel
+ * @param {string} channelId
+ * @returns {Promise<object|null>} { shape_username, ai_provider }
+ */
+async function getChannelShapeConfig(channelId) {
+  const doc = await db.collection('channel_shape_config').findOne({ channel_id: channelId });
+  if (!doc) return null;
+  return {
+    shape_username: doc.shape_username || null,
+    ai_provider: doc.ai_provider || null
+  };
+}
+
+/**
+ * Remove the shape/AI config for a channel (reset to global default)
+ * @param {string} channelId
+ * @returns {Promise<void>}
+ */
+async function removeChannelShapeConfig(channelId) {
+  await db.collection('channel_shape_config').deleteOne({ channel_id: channelId });
+}
+
 module.exports = {
   client,
   blacklistUser,
@@ -164,5 +201,8 @@ module.exports = {
   getShapeUsername,
   getOwners,
   addOwner,
-  removeOwner
+  removeOwner,
+  setChannelShapeConfig,
+  getChannelShapeConfig,
+  removeChannelShapeConfig
 }; 

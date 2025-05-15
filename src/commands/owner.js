@@ -1,5 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const db = require('../database/database');
+const aiService = require('../utils/aiService');
+
+// Get main owner ID from environment
 const mainOwnerId = process.env.OWNER_ID;
 
 module.exports = {
@@ -36,8 +39,12 @@ module.exports = {
     const subcommand = interaction.options.getSubcommand();
     const userId = interaction.user.id;
 
+    // Get main owner IDs (handles multiple IDs separated by commas)
+    const mainOwnerIds = mainOwnerId ? mainOwnerId.split(',').map(id => id.trim().replace(/[<@>]/g, '')) : [];
+    const isMainOwner = mainOwnerIds.includes(userId);
+
     // Only main owner can add/remove
-    if ((subcommand === 'add' || subcommand === 'remove') && userId !== mainOwnerId) {
+    if ((subcommand === 'add' || subcommand === 'remove') && !isMainOwner) {
       return interaction.reply({
         content: 'Only the main owner can add or remove owners.',
         ephemeral: true
@@ -46,22 +53,25 @@ module.exports = {
 
     if (subcommand === 'add') {
       const user = interaction.options.getUser('user');
-      if (user.id === mainOwnerId) {
+      // Check if user is already a main owner
+      if (mainOwnerIds.includes(user.id)) {
         return interaction.reply({ content: 'Main owner is always an owner.', ephemeral: true });
       }
       await db.addOwner(user.id);
       return interaction.reply({ content: `<@${user.id}> added as owner.`, ephemeral: false });
     } else if (subcommand === 'remove') {
       const user = interaction.options.getUser('user');
-      if (user.id === mainOwnerId) {
+      // Check if user is a main owner
+      if (mainOwnerIds.includes(user.id)) {
         return interaction.reply({ content: 'Cannot remove the main owner.', ephemeral: true });
       }
       await db.removeOwner(user.id);
       return interaction.reply({ content: `<@${user.id}> removed from owners.`, ephemeral: false });
     } else if (subcommand === 'list') {
       const owners = await db.getOwners();
-      const allOwners = [mainOwnerId, ...owners];
-      const ownerMentions = allOwners.map(id => `<@${id}>`).join('\n');
+      const allOwners = [...mainOwnerIds, ...owners];
+      const uniqueOwners = [...new Set(allOwners)]; // Remove duplicates
+      const ownerMentions = uniqueOwners.map(id => `<@${id}>`).join('\n');
       return interaction.reply({ content: `Current owners:\n${ownerMentions}`, ephemeral: false });
     }
   }

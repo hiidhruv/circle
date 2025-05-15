@@ -57,12 +57,8 @@ const shapesApiConfig = {
 // Create axios instance
 const shapesApi = axios.create(shapesApiConfig);
 
-// Gemini API configuration
-const geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const geminiApiKey = process.env.GEMINI_API_KEY;
-
 // Track which API is primary
-let primaryApi = 'shapes'; // 'shapes' or 'gemini'
+let primaryApi = 'shapes'; // Only 'shapes' is now supported
 // Track which client to use with Shapes API
 let shapesClient = 'openai'; // Default to openai if available, otherwise axios
 
@@ -71,7 +67,7 @@ if (!isOpenAiSdkAvailable) {
   shapesClient = 'axios';
 }
 
-// Tenshi persona for Gemini - Load from environment or use default
+// Tenshi persona - Load from environment or use default
 const tenshiSystemPrompt = process.env.TENSHI_SYSTEM_PROMPT || `
 Primary Prompt:
 You are tenshi, Tenshi is a 19-year-old, modern-day maverick. She is good at cracking jokes and making fun of everything. Tenshi is a nice girl. Tenshi rarely users which she normally doesn't (it's not her main purpose).
@@ -85,14 +81,44 @@ Primary Prompt Lite:
 Tenshi might very very rarely respond with "ur mom".
 `;
 
+// Auto-update nickname feature (default: true)
+let autoUpdateNickname = true;
+
+// Show shape name in responses (default: true)
+let showShapeNameInResponses = true;
+
+function setAutoUpdateNickname(val) {
+  autoUpdateNickname = !!val;
+}
+
+function getAutoUpdateNickname() {
+  return autoUpdateNickname;
+}
+
+/**
+ * Set whether to show shape name in responses
+ * @param {boolean} val - True to show shape name, false to hide
+ */
+function setShowShapeNameInResponses(val) {
+  showShapeNameInResponses = !!val;
+}
+
+/**
+ * Get whether to show shape name in responses
+ * @returns {boolean} Current setting
+ */
+function getShowShapeNameInResponses() {
+  return showShapeNameInResponses;
+}
+
 /**
  * Set the primary API to use
- * @param {string} api - Either 'shapes' or 'gemini'
+ * @param {string} api - Only 'shapes' is supported now
  * @returns {string} Confirmation message
  */
 function setPrimaryApi(api) {
-  if (api !== 'shapes' && api !== 'gemini') {
-    return 'Invalid API choice. Use "shapes" or "gemini".';
+  if (api !== 'shapes') {
+    return 'Only Shapes Inc API is supported.';
   }
   
   primaryApi = api;
@@ -153,98 +179,100 @@ function getShapeUsername() {
 }
 
 /**
+ * Get the effective shape username for a channel
+ * @param {string} channelId
+ * @returns {Promise<{ shape_username: string }>}
+ */
+async function getEffectiveChannelConfig(channelId) {
+  const channelConfig = await db.getChannelShapeConfig(channelId);
+  return {
+    shape_username: channelConfig && channelConfig.shape_username ? channelConfig.shape_username : shapesUsername
+    // ai_provider field removed as only Shapes Inc API is now supported
+  };
+}
+
+/**
  * Generate AI response using the configured API
  * @param {string} channelId - Discord channel ID
- * @param {string} prompt - User message
+ * @param {Array|string} message - User message content (string or array of content objects)
  * @param {string} userId - User ID for context tracking
  * @returns {Promise<string>} AI response
  */
-async function generateResponse(channelId, prompt, userId) {
+async function generateResponse(channelId, message, userId) {
   try {
     // Local tracking only
     if (!messageContexts.has(channelId)) {
       messageContexts.set(channelId, []);
     }
-    
     const context = messageContexts.get(channelId);
+    
+    // Handle message content which can be a string or an array of objects
+    let messageContent;
+    if (typeof message === 'string') {
+      // Convert simple string to content array format
+      messageContent = [{ type: 'text', text: message }];
+    } else if (Array.isArray(message)) {
+      // Use the array directly (assuming proper format)
+      messageContent = message;
+    } else {
+      // Default fallback in case of unexpected input
+      messageContent = [{ type: 'text', text: String(message) }];
+    }
+    
+    // Store in context
     context.push({
       role: 'user',
-      content: prompt,
+      content: messageContent,
       userId: userId
     });
     
-    // Keep local context to a reasonable size
+    // Keep context manageable
     while (context.length > 10) {
       context.shift();
     }
     
-    // Try primary API first, then fallback if needed
-    try {
-      if (primaryApi === 'shapes') {
-        // Format IDs for better tracking in Shapes
-        const formattedUserId = `discord-user-${userId}`;
-        const formattedChannelId = `discord-channel-${channelId}`;
-        
-        return await generateShapesResponse(formattedChannelId, prompt, formattedUserId, context);
-      } else {
-        return await generateGeminiResponse(context);
-      }
-    } catch (primaryError) {
-      // Only log error if logging is enabled
-      if (isLoggingEnabled()) {
-        console.error(`Error with primary API (${primaryApi}):`, primaryError.message);
-      }
-      
-      // Fallback to the other API
-      try {
-        if (primaryApi === 'shapes') {
-          return await generateGeminiResponse(context);
-        } else {
-          // Format IDs for better tracking in Shapes
-          const formattedUserId = `discord-user-${userId}`;
-          const formattedChannelId = `discord-channel-${channelId}`;
-          
-          return await generateShapesResponse(formattedChannelId, prompt, formattedUserId, context);
-        }
-      } catch (fallbackError) {
-        // Always log fallback errors as they are critical
-        console.error('Error with fallback API:', fallbackError.message);
-        throw fallbackError;
-      }
-    }
+    // Get per-channel config
+    const { shape_username } = await getEffectiveChannelConfig(channelId);
+    
+    // Always use Shapes Inc API now
+    const formattedUserId = `discord-user-${userId}`;
+    const formattedChannelId = `discord-channel-${channelId}`;
+    
+    // Pass shape_username and messageContent to generateShapesResponse
+    return await generateShapesResponse(
+      formattedChannelId, 
+      messageContent, 
+      formattedUserId, 
+      context, 
+      shape_username
+    );
   } catch (error) {
-    // Always log critical errors
-    console.error('Error generating AI response:', error.message);
-    
-    // Check if it's an API error with more details
-    if (error.response) {
-      console.error('API Error Details:', error.response.data);
-    }
-    
-    return `Something went wrong and ${getShapeUsername()} is cooked`;
+    console.error('Error in generateResponse:', error);
+    return 'Sorry, something went wrong.';
   }
 }
 
 /**
  * Generate response using Shapes Inc API
  * @param {string} channelId - Discord channel ID
- * @param {string} prompt - User message
+ * @param {Array} messageContent - User message content array with text/image/audio
  * @param {string} userId - User ID
  * @param {Array} context - Message context
+ * @param {string} shape_username_override - Optional shape username override
  * @returns {Promise<string>} AI response
  */
-async function generateShapesResponse(channelId, prompt, userId, context) {
+async function generateShapesResponse(channelId, messageContent, userId, context, shape_username_override) {
   let aiMessage;
-  const modelUsername = getShapeUsername();
+  const shapeToUse = shape_username_override || shapesUsername;
   
   // Check which client implementation to use
   if (shapesClient === 'openai' && isOpenAiSdkAvailable) {
     // OpenAI SDK implementation (recommended)
     try {
       const response = await shapes.chat.completions.create({
-        model: `shapesinc/${modelUsername}`,
+        model: `shapesinc/${shapeToUse}`,
         messages: [
-          { role: "user", content: prompt }
+          { role: "user", content: messageContent }
         ],
         extra_headers: {
           "X-User-Id": userId,
@@ -261,14 +289,14 @@ async function generateShapesResponse(channelId, prompt, userId, context) {
       
       // Only fallback to axios if it's not a critical error
       if (!error.message.includes('unauthorized') && !error.message.includes('invalid_api_key')) {
-        aiMessage = await useAxiosImplementation(channelId, prompt, userId);
+        aiMessage = await useAxiosImplementation(channelId, messageContent, userId, shapeToUse);
       } else {
         throw error; // Re-throw authorization errors
       }
     }
   } else {
     // Axios implementation (original or fallback)
-    aiMessage = await useAxiosImplementation(channelId, prompt, userId);
+    aiMessage = await useAxiosImplementation(channelId, messageContent, userId, shapeToUse);
   }
   
   // Store response in context
@@ -287,21 +315,34 @@ async function generateShapesResponse(channelId, prompt, userId, context) {
 /**
  * Helper function to use the Axios implementation for API calls
  * @param {string} channelId - Channel ID
- * @param {string} prompt - User message
+ * @param {Array} messageContent - User message content array
  * @param {string} userId - User ID
+ * @param {string} shapeToUse - Shape username
  * @returns {Promise<string>} AI response
  */
-async function useAxiosImplementation(channelId, prompt, userId) {
+async function useAxiosImplementation(channelId, messageContent, userId, shapeToUse) {
   try {
-    // Using the axios client with proper headers
-    const response = await shapesApi.post('/chat/completions', {
-      content: prompt,
+    // Format request payload for the Shapes API
+    const payload = {
+      model: `shapesinc/${shapeToUse}`,
+      messages: [
+        { role: "user", content: messageContent }
+      ],
       platform: "discord",
       platform_user_id: userId,
       channel_id: channelId
-    });
+    };
     
-    return response.data.content;
+    const response = await shapesApi.post('/chat/completions', payload);
+    
+    // Handle different response formats
+    if (response.data && response.data.content) {
+      return response.data.content;
+    } else if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
+      return response.data.choices[0].message.content;
+    }
+    
+    throw new Error('Unexpected response structure from Shapes API');
   } catch (error) {
     // Only log error if logging is enabled
     if (isLoggingEnabled()) {
@@ -309,68 +350,6 @@ async function useAxiosImplementation(channelId, prompt, userId) {
     }
     throw error; // Re-throw the error to be handled by the caller
   }
-}
-
-/**
- * Generate response using Gemini API
- * @param {Array} context - Message context
- * @returns {Promise<string>} AI response
- */
-async function generateGeminiResponse(context) {
-  // Check if Gemini API key is available
-  if (!geminiApiKey) {
-    throw new Error('Gemini API key not available');
-  }
-  
-  // Prepare context for Gemini API
-  const recentMessages = context.slice(-5).map(msg => ({
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: msg.content }]
-  }));
-  
-  // Add system prompt at the beginning
-  recentMessages.unshift({
-    role: 'user',
-    parts: [{ text: tenshiSystemPrompt }]
-  });
-  
-  recentMessages.unshift({
-    role: 'model',
-    parts: [{ text: 'I understand and will respond as Tenshi with those guidelines.' }]
-  });
-  
-  // Call Gemini API
-  const geminiResponse = await axios.post(
-    `${geminiApiUrl}?key=${geminiApiKey}`,
-    {
-      contents: recentMessages,
-      generationConfig: {
-        temperature: 0.9,
-        maxOutputTokens: 200,
-      }
-    }
-  );
-  
-  // Process Gemini response
-  if (geminiResponse.data && 
-      geminiResponse.data.candidates && 
-      geminiResponse.data.candidates.length > 0 &&
-      geminiResponse.data.candidates[0].content &&
-      geminiResponse.data.candidates[0].content.parts &&
-      geminiResponse.data.candidates[0].content.parts.length > 0) {
-    
-    const aiMessage = geminiResponse.data.candidates[0].content.parts[0].text;
-    
-    // Add to local context
-    context.push({
-      role: 'assistant',
-      content: aiMessage
-    });
-    
-    return aiMessage;
-  }
-  
-  throw new Error('No valid response from Gemini API');
 }
 
 /**
@@ -419,7 +398,20 @@ const mainOwnerId = process.env.OWNER_ID;
  */
 async function isOwner(userId) {
   if (!userId) return false;
-  if (userId === mainOwnerId) return true;
+  
+  // Handle comma-separated list of owner IDs
+  if (mainOwnerId) {
+    // Remove any Discord mention format like <@ID> if present
+    const cleanUserId = userId.replace(/[<@>]/g, '');
+    
+    // Split by commas and clean up each ID
+    const ownerIds = mainOwnerId.split(',').map(id => id.trim().replace(/[<@>]/g, ''));
+    
+    // Check if user ID is in the list
+    if (ownerIds.includes(cleanUserId)) return true;
+  }
+  
+  // Also check database for additional owners
   const owners = await db.getOwners();
   return owners.includes(userId);
 }
@@ -435,5 +427,10 @@ module.exports = {
   isOpenAiSdkAvailable,
   setShapeUsername,
   getShapeUsername,
-  isOwner
+  isOwner,
+  setAutoUpdateNickname,
+  getAutoUpdateNickname,
+  getEffectiveChannelConfig,
+  setShowShapeNameInResponses,
+  getShowShapeNameInResponses
 }; 

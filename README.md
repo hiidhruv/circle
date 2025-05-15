@@ -6,14 +6,13 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
 
 ## Features
 
-- **AI Chat**: Responds to messages using Shapes Inc (OpenAI SDK or Axios fallback) and optionally Google Gemini.
+- **AI Chat**: Responds to messages using Shapes Inc API via OpenAI SDK.
 - **Contextual Replies**: Replies to users as Discord replies (no ping).
-- **Owner System**: Only bot owners can use sensitive commands (see below). Main owner is set in `.env`, can add/remove lower-level owners via `/owner` command.
+- **Owner System**: Only bot owners can use sensitive commands (see below). Main owners are set in `.env` (comma-separated), can add/remove lower-level owners via `/owner` command.
 - **Moderation**: Slash commands for blacklisting, whitelisting, purging, kicking, and banning users.
 - **Channel Modes**: Activate or deactivate channels for full-message AI response.
 - **Logging Control**: Toggle message response logging with `/logging on` and `/logging off`.
 - **Custom Status**: Shows as "Watching ur mom" and always online.
-- **Secure**: No secrets or node_modules in the repo; uses `.env` for all sensitive config.
 - **MongoDB Database**: Uses MongoDB Atlas for persistent, production-ready storage.
 
 ---
@@ -27,7 +26,6 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
 - A Discord bot token ([Discord Developer Portal](https://discord.com/developers/applications))
 - A Shapes Inc API key ([Shapes Inc](https://shapes.inc))
 - A MongoDB Atlas cluster (free tier is fine)
-- (Optional) Google Gemini API key
 
 ### Installation
 
@@ -64,11 +62,7 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
    MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
 
    # Owner system
-   OWNER_ID=your_discord_user_id   # Main owner (can add/remove other owners)
-
-   # Optional
-   GEMINI_API_KEY=your_gemini_api_key
-   CIRCLE_SYSTEM_PROMPT=custom_system_prompt
+   OWNER_ID=your_discord_user_id   # Main owner ID or comma-separated IDs
    ```
 
 5. **Run the bot:**
@@ -83,10 +77,10 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
 
 ## Owner System & Restricted Commands
 
-- The main owner is set via `OWNER_ID` in your `.env` file.
+- The main owners are set via `OWNER_ID` in your `.env` file (comma-separated for multiple owners).
 - Only owners can use sensitive commands:
-  - `/blacklist`, `/whitelist`, `/api`, `/trigger`, `/shape`, `/owner`
-- The main owner can add or remove lower-level owners with the `/owner` command.
+  - `/blacklist`, `/whitelist`, `/bchannel`, `/wchannel`, `/api`, `/trigger`, `/shape`, `/owner`
+- The main owners can add or remove lower-level owners with the `/owner` command.
 - All owners (main + lower-level) can use restricted commands.
 
 ### Owner Management Commands
@@ -98,20 +92,22 @@ A modern Discord bot powered by the Shapes Inc API, with robust moderation, AI c
 
 ## Commands
 
-- `/api set <shapes|gemini>` — Set the primary AI service (**owners only**)
-- `/api client <openai|axios>` — Set the Shapes API client implementation (**owners only**)
 - `/api status` — Show current API settings (**owners only**)
+- `/api debug` — Show API key status (**server owner only**)
 - `/wack` — Clear message context for the current channel
-- `/blacklist user <user>` — Blacklist a user (**owners only**)
-- `/whitelist user <user>` — Remove a user from the blacklist (**owners only**)
-- `/activatechannel` — Make the bot respond to all messages in the channel
-- `/deactivatechannel` — Make the bot follow normal response rules
+- `/blacklist <user>` — Blacklist a user from using the AI (**owners only**)
+- `/whitelist <user>` — Remove a user from the blacklist (**owners only**)
+- `/bchannel <channel>` — Blacklist a channel from using the AI (**manage messages permission**)
+- `/wchannel <channel>` — Remove a channel from the blacklist (**manage messages permission**)
+- `/activate` — Make the bot respond to all messages in the current channel (**manage messages permission**)
+- `/deactivate` — Make the bot follow normal response rules (**manage messages permission**)
 - `/logging <on|off>` — Toggle message response logging in the console
 - `/purge <count>` — Delete a number of messages
 - `/kick <user> [reason]` — Kick a user
 - `/ban <user> [reason]` — Ban a user
 - `/shape set <username>` — Change the active Shape username (**owners only**)
 - `/shape get` — Show the current Shape username (**owners only**)
+- `/shape showname <on|off>` — Toggle showing shape name in responses (**owners only**)
 - `/trigger set <word>` — Change the bot's trigger word (**owners only**)
 - `/trigger get` — Show the current trigger word (**owners only**)
 - `/owner add <user>` — Add a lower-level owner (**main owner only**)

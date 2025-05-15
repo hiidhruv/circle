@@ -67,16 +67,63 @@ async function handleMessage(message, client) {
         // Show typing indicator
         await message.channel.sendTyping();
         
-        // Get response from AI
+        // Build multimodal content array for Shapes Inc API
+        const userContent = [];
+        
+        // Add text content if present
+        if (message.content && message.content.trim() !== '') {
+          userContent.push({ type: 'text', text: message.content.trim() });
+        }
+        
+        // Check for image and audio attachments
+        if (message.attachments.size > 0) {
+          for (const [id, attachment] of message.attachments) {
+            const contentType = attachment.contentType || '';
+            
+            // Handle image attachments
+            if (contentType.startsWith('image/')) {
+              userContent.push({
+                type: 'image_url',
+                image_url: { url: attachment.url }
+              });
+            }
+            // Handle audio attachments (mp3, wav, ogg)
+            else if (contentType.startsWith('audio/') || 
+                     contentType.includes('mp3') || 
+                     contentType.includes('wav') || 
+                     contentType.includes('ogg')) {
+              userContent.push({
+                type: 'audio_url',
+                audio_url: { url: attachment.url }
+              });
+            }
+          }
+        }
+        
+        // If we have no content (unlikely but possible), add a default text prompt
+        if (userContent.length === 0) {
+          userContent.push({ type: 'text', text: message.content || 'Hello' });
+        }
+        
+        // Get response from AI using multimodal content
         const response = await aiService.generateResponse(
           message.channel.id, 
-          message.content,
+          userContent,
           message.author.id
         );
         
+        // Get the current shape for this channel
+        const { shape_username } = await aiService.getEffectiveChannelConfig(message.channel.id);
+        
         // Send response as a reply but without pinging the user
+        // Only include shape name prefix if the setting is enabled
+        let responseContent = response;
+        if (aiService.getShowShapeNameInResponses()) {
+          responseContent = `**[${shape_username}]** ${response}`;
+        }
+        
         await message.reply({
-          content: response,
+          content: responseContent,
           allowedMentions: { repliedUser: false }
         });
         
