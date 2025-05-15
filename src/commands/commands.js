@@ -84,7 +84,7 @@ function getCommandsEmbed(page = 1) {
       ).join('\n') +
       `\nPage ${page}/${totalPages}`
     )
-    .setColor(0x5865F2);
+    .setColor(0xFFFF00);
 }
 
 function getCommandsButtons(page = 1) {

@@ -14,7 +14,7 @@ const FEATURES = [
   '• Open source & extensible'
 ];
 
-const BANNER_URL = 'https://i.dhrv.dev/o0ejoa.jpg';
+const BANNER_URL = 'https://i.dhrv.dev/5e5qat.png';
 
 const HOW_TO_STEPS = [
   '1. Use `/username` to learn how to find shape usernames',
@@ -40,14 +40,14 @@ function getAboutEmbed() {
       '\n\n[Join our support server](https://discord.gg/8qV2h7Sct2)'
     )
     .setImage(BANNER_URL)
-    .setColor(0x5865F2);
+    .setColor(0xFFFF00);
 }
 
 function getHowToEmbed() {
   return new EmbedBuilder()
     .setTitle('How to Use Circle')
     .setDescription(HOW_TO_STEPS.join('\n'))
-    .setColor(0x5865F2);
+    .setColor(0xFFFF00);
 }
 
 function getAboutButtons() {

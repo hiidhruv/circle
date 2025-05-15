@@ -2,8 +2,8 @@ const db = require('../database/database');
 const aiService = require('./aiService');
 const loggingCommand = require('../commands/logging');
 
-// Configurable trigger word (default: 'tenshi')
-let triggerWord = 'tenshi';
+// Configurable trigger word (default: 'circle')
+let triggerWord = 'circle';
 
 function setTriggerWord(word) {
   triggerWord = word.toLowerCase();

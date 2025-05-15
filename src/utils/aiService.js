@@ -19,7 +19,7 @@ function isLoggingEnabled() {
 // Get API key and config - ensuring it's properly set
 const shapesApiKey = process.env.SHAPESINC_API_KEY || process.env.SHAPES_API_KEY;
 const shapesApiUrl = process.env.SHAPES_API_URL || 'https://api.shapes.inc/v1';
-let shapesUsername = process.env.SHAPESINC_SHAPE_USERNAME || process.env.SHAPES_USERNAME || 'tenshi';
+let shapesUsername = process.env.SHAPESINC_SHAPE_USERNAME || process.env.SHAPES_USERNAME || 'circle-bot';
 
 // Log minimal startup diagnostic info
 console.log(`API: ${shapesApiUrl} | Shape: ${shapesUsername} | Key: ${shapesApiKey ? '✓' : '✗'}`);

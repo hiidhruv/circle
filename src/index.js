@@ -28,10 +28,10 @@ const client = new Client({
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   
-  // Set custom status: Watching ur mom
+  // Set custom status
   readyClient.user.setPresence({
     status: 'online',
-    activities: [{ name: 'ur mom', type: 3 }] // 3 = Watching
+    activities: [{ name: 'circling', type: 4 }] // 4 = Custom Status
   });
 
   // Load all commands
