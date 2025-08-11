@@ -1,7 +1,7 @@
 {
-  "name": "circle",
+  "name": "gpt5",
   "version": "1.0.0",
-  "description": "Discord AI chatbot using Shapes Inc API (Circle)",
+  "description": "Discord AI chatbot using Shapes Inc API (gpt 5)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -11,8 +11,8 @@
     "axios": "^1.6.2",
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
-    "mongodb": "^6.16.0",
-    "openai": "^4.17.0"
+    "openai": "^4.17.0",
+    "pg": "^8.12.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

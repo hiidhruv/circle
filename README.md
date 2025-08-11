@@ -1,6 +1,6 @@
-# Circle Bot
+# gpt 5 Bot
 
-A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI chat(image gen too), and a clean shape interchanging system
+A modern Discord bot powered by the Shapes Inc API, with basic moderation and AI chat. The model is hardlocked to `shapesinc/openaigpt5`.
 
 ---
 
@@ -13,7 +13,7 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 - **Channel Modes**: Activate or deactivate channels for full-message AI response.
 - **Logging Control**: Toggle message response logging with `/logging on` and `/logging off`.
 - **Custom Status**: Shows as "Watching ur mom" and always online. (edit the code to update)
-- **MongoDB Database**: Uses MongoDB Atlas for persistent, production-ready storage.
+- **Neon Database**: Uses Neon (Postgres) for persistent, production-ready storage.
 
 ---
 
@@ -25,14 +25,14 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 - NPM v7.x or higher
 - A Discord bot token ([Discord Developer Portal](https://discord.com/developers/applications))
 - A Shapes Inc API key ([Shapes Inc](https://shapes.inc))
-- A MongoDB Atlas cluster (free tier is fine)
+- A Neon Postgres database (free tier works)
 
 ### Installation
 
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/hiidhruv/circle.git
-   cd circle
+   git clone https://github.com/hiidhruv/gpt5.git
+   cd gpt5
    ```
 
 2. **Install dependencies:**
@@ -40,13 +40,9 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
    npm install
    ```
 
-3. **Create a MongoDB Atlas cluster:**
-   - Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-   - Create a free cluster
-   - Add a database user and password
-   - Allow access from your server's IP or 0.0.0.0/0 for development
-   - Click "Connect" > "Drivers" > select Node.js and copy the connection string
-   - Replace `<username>` and `<password>` in the URI with your credentials
+3. **Provision Neon (Postgres):**
+   - Create a Neon project and database
+   - Copy the connection string and set it as `DATABASE_URL` in `.env`
 
 4. **Create a `.env` file in the root directory:**
    ```env
@@ -55,11 +51,10 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 
    # Shapes Inc
    SHAPESINC_API_KEY=your_shapes_api_key
-   SHAPESINC_SHAPE_USERNAME=your_shape_username
    SHAPES_API_URL=https://api.shapes.inc/v1
 
-   # MongoDB
-   MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   # Neon Postgres
+   DATABASE_URL=postgres://user:pass@host/db
 
    # Owner system
    OWNER_ID=your_discord_user_id   # Main owner ID or comma-separated IDs
@@ -79,7 +74,7 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 
 - The main owners are set via `OWNER_ID` in your `.env` file (comma-separated for multiple owners).
 - Only owners can use sensitive commands:
-  - `/blacklist`, `/whitelist`, `/bchannel`, `/wchannel`, `/api`, `/trigger`, `/shape`, `/owner`
+  - `/blacklist`, `/whitelist`, `/bchannel`, `/wchannel`, `/api`, `/trigger`, `/owner`
 - The main owners can add or remove lower-level owners with the `/owner` command.
 - All owners (main + lower-level) can use restricted commands.
 
@@ -105,9 +100,6 @@ A modern Discord bot powered by the Shapes Inc API, with basic moderation, AI ch
 - `/purge <count>` — Delete a number of messages
 - `/kick <user> [reason]` — Kick a user
 - `/ban <user> [reason]` — Ban a user
-- `/shape set <username>` — Change the active Shape username (**owners only**)
-- `/shape get` — Show the current Shape username (**owners only**)
-- `/shape showname <on|off>` — Toggle showing shape name in responses (**owners only**)
 - `/trigger set <word>` — Change the bot's trigger word (**owners only**)
 - `/trigger get` — Show the current trigger word (**owners only**)
 - `/owner add <user>` — Add a lower-level owner (**main owner only**)

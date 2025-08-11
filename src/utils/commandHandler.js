@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const { Collection, REST, Routes } = require('discord.js');
+const { Collection, REST, Routes, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const authService = require('./authService');
 require('dotenv').config();
 
 // Collection to store all commands
@@ -82,7 +83,7 @@ async function handleCommandInteraction(interaction) {
   }
 }
 
-// Handle button interactions (for /about pagination)
+// Handle button interactions (for /about pagination and auth wall)
 async function handleButtonInteraction(interaction) {
   if (!interaction.isButton()) return;
   const customId = interaction.customId;
@@ -99,11 +100,105 @@ async function handleButtonInteraction(interaction) {
     if (commands.handleButton) {
       await commands.handleButton(interaction);
     }
+  } else if (customId === 'auth_wall_login') {
+    // Handle authentication wall button
+    await handleAuthWallButton(interaction);
+  }
+}
+
+// Handle authentication wall button click - show modal
+async function handleAuthWallButton(interaction) {
+  try {
+    // Get app ID for authorization URL
+    const appId = process.env.APP_ID || process.env.SHAPESINC_APP_ID;
+    const authUrl = `https://shapes.inc/authorize?app_id=${appId}`;
+    
+    const modal = new ModalBuilder()
+      .setCustomId('auth_token_modal')
+      .setTitle('🔐 Shapes Inc Authorization');
+
+    const urlInput = new TextInputBuilder()
+      .setCustomId('auth_url_display')
+      .setLabel('1. Visit this URL to authorize:')
+      .setStyle(TextInputStyle.Paragraph)
+      .setValue(authUrl)
+      .setRequired(false);
+
+    const codeInput = new TextInputBuilder()
+      .setCustomId('one_time_code')
+      .setLabel('2. Paste your one-time code here:')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter the code from Shapes Inc')
+      .setRequired(true)
+      .setMaxLength(200);
+
+    const firstRow = new ActionRowBuilder().addComponents(urlInput);
+    const secondRow = new ActionRowBuilder().addComponents(codeInput);
+
+    modal.addComponents(firstRow, secondRow);
+
+    await interaction.showModal(modal);
+  } catch (error) {
+    console.error('Error showing auth modal:', error);
+    await interaction.reply({
+      content: '❌ Failed to show authentication form. Please try again.',
+      ephemeral: true
+    });
+  }
+}
+
+// Handle modal submissions (auth token input)
+async function handleModalSubmission(interaction) {
+  if (!interaction.isModalSubmit()) return;
+  
+  if (interaction.customId === 'auth_token_modal') {
+    await handleAuthTokenModal(interaction);
+  }
+}
+
+// Handle authentication token modal submission
+async function handleAuthTokenModal(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const oneTimeCode = interaction.fields.getTextInputValue('one_time_code').trim();
+    
+    if (!oneTimeCode) {
+      const appId = process.env.APP_ID || process.env.SHAPESINC_APP_ID;
+      const authUrl = `https://shapes.inc/authorize?app_id=${appId}`;
+      
+      await interaction.editReply({
+        content: `**Please provide your one-time code.**\n\n**Get your code:** Visit [Shapes Inc Authorization](${authUrl}) to generate a one-time code and access the free platform.`
+      });
+      return;
+    }
+    
+    // Authenticate with Shapes Inc (bot's APP_ID used automatically)
+    const result = await authService.authenticateUser(oneTimeCode, interaction.user.id);
+    
+    if (result.success) {
+      await interaction.editReply({
+        content: result.message + '\n\n**Welcome to the Shapes ecosystem!** You now have unlimited access to this Discord bot and can explore millions of characters at [talk.shapes.inc](https://talk.shapes.inc)'
+      });
+    } else {
+      const appId = process.env.APP_ID || process.env.SHAPESINC_APP_ID;
+      const authUrl = `https://shapes.inc/authorize?app_id=${appId}`;
+      
+      await interaction.editReply({
+        content: result.message + `\n\n**Need help getting your code?**\nVisit [Shapes Inc Authorization](${authUrl}) to generate a one-time code and join the free platform.`
+      });
+    }
+  } catch (error) {
+    console.error('Error processing auth modal:', error);
+    await interaction.editReply({
+      content: '❌ An error occurred during authentication. Please try again.'
+    });
   }
 }
 
 module.exports = {
   loadCommands,
   handleCommandInteraction,
-  handleButtonInteraction
+  handleButtonInteraction,
+  handleModalSubmission
 }; 

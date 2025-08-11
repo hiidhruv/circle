@@ -19,10 +19,11 @@ function isLoggingEnabled() {
 // Get API key and config - ensuring it's properly set
 const shapesApiKey = process.env.SHAPESINC_API_KEY || process.env.SHAPES_API_KEY;
 const shapesApiUrl = process.env.SHAPES_API_URL || 'https://api.shapes.inc/v1';
-let shapesUsername = process.env.SHAPESINC_SHAPE_USERNAME || process.env.SHAPES_USERNAME || 'circle-bot';
+// Hardlocked model per requirements
+const HARDLOCKED_MODEL = 'shapesinc/openaigpt5';
 
 // Log minimal startup diagnostic info
-console.log(`API: ${shapesApiUrl} | Shape: ${shapesUsername} | Key: ${shapesApiKey ? '✓' : '✗'}`);
+console.log(`API: ${shapesApiUrl} | Model: ${HARDLOCKED_MODEL} | Key: ${shapesApiKey ? '✓' : '✗'}`);
 
 // Message context storage - Only storing locally for fallback
 const messageContexts = new Map();
@@ -67,49 +68,11 @@ if (!isOpenAiSdkAvailable) {
   shapesClient = 'axios';
 }
 
-// Tenshi persona - Load from environment or use default
-const tenshiSystemPrompt = process.env.TENSHI_SYSTEM_PROMPT || `
-Primary Prompt:
-You are tenshi, Tenshi is a 19-year-old, modern-day maverick. She is good at cracking jokes and making fun of everything. Tenshi is a nice girl. Tenshi rarely users which she normally doesn't (it's not her main purpose).
-Tenshi's bold, unfiltered humor is what defines her the best.
-Tenshi doesn't use emojis. Tenshi does not like to argue with people therefore she has a gun to handle matters. Tenshi normally wouldn't talk about her gun.
-
-Secondary Prompt:
-Tenshi writes in lowercase and informal grammar. Tenshi's replies are short text messages. Tenshi's responses are short messages, they can be a word to three sentences long but never longer than that. Tenshi likes to use modernized broken english words. Tenshi does not use emojis.
-
-Primary Prompt Lite:
-Tenshi might very very rarely respond with "ur mom".
-`;
-
-// Auto-update nickname feature (default: true)
-let autoUpdateNickname = true;
-
-// Show shape name in responses (default: true)
-let showShapeNameInResponses = true;
-
-function setAutoUpdateNickname(val) {
-  autoUpdateNickname = !!val;
-}
-
-function getAutoUpdateNickname() {
-  return autoUpdateNickname;
-}
+// Note: No system prompt needed - Shapes API models have personality built-in
 
 /**
- * Set whether to show shape name in responses
- * @param {boolean} val - True to show shape name, false to hide
+ * (Removed) Show shape name toggle – model is hardlocked, no per-shape labeling
  */
-function setShowShapeNameInResponses(val) {
-  showShapeNameInResponses = !!val;
-}
-
-/**
- * Get whether to show shape name in responses
- * @returns {boolean} Current setting
- */
-function getShowShapeNameInResponses() {
-  return showShapeNameInResponses;
-}
 
 /**
  * Set the primary API to use
@@ -161,44 +124,22 @@ function getShapesClient() {
 }
 
 /**
- * Set the current shape username (runtime)
- * @param {string} username
+ * (Removed) Shape username management – model is hardlocked
  */
-function setShapeUsername(username) {
-  shapesUsername = username;
-  // Persist to DB (async, fire and forget)
-  db.setShapeUsername(username).catch(console.error);
-}
 
 /**
- * Get the current shape username
- * @returns {string}
+ * (Removed) Channel-level shape overrides – not applicable with hardlocked model
  */
-function getShapeUsername() {
-  return shapesUsername;
-}
-
-/**
- * Get the effective shape username for a channel
- * @param {string} channelId
- * @returns {Promise<{ shape_username: string }>}
- */
-async function getEffectiveChannelConfig(channelId) {
-  const channelConfig = await db.getChannelShapeConfig(channelId);
-  return {
-    shape_username: channelConfig && channelConfig.shape_username ? channelConfig.shape_username : shapesUsername
-    // ai_provider field removed as only Shapes Inc API is now supported
-  };
-}
 
 /**
  * Generate AI response using the configured API
  * @param {string} channelId - Discord channel ID
  * @param {Array|string} message - User message content (string or array of content objects)
  * @param {string} userId - User ID for context tracking
+ * @param {string|null} userAuthToken - User's personal auth token (null = use bot token)
  * @returns {Promise<string>} AI response
  */
-async function generateResponse(channelId, message, userId) {
+async function generateResponse(channelId, message, userId, userAuthToken = null) {
   try {
     // Local tracking only
     if (!messageContexts.has(channelId)) {
@@ -231,20 +172,17 @@ async function generateResponse(channelId, message, userId) {
       context.shift();
     }
     
-    // Get per-channel config
-    const { shape_username } = await getEffectiveChannelConfig(channelId);
-    
     // Always use Shapes Inc API now
     const formattedUserId = `discord-user-${userId}`;
     const formattedChannelId = `discord-channel-${channelId}`;
     
-    // Pass shape_username and messageContent to generateShapesResponse
+    // Generate response with hardlocked model
     return await generateShapesResponse(
-      formattedChannelId, 
-      messageContent, 
-      formattedUserId, 
-      context, 
-      shape_username
+      formattedChannelId,
+      messageContent,
+      formattedUserId,
+      context,
+      userAuthToken
     );
   } catch (error) {
     console.error('Error in generateResponse:', error);
@@ -258,19 +196,35 @@ async function generateResponse(channelId, message, userId) {
  * @param {Array} messageContent - User message content array with text/image/audio
  * @param {string} userId - User ID
  * @param {Array} context - Message context
- * @param {string} shape_username_override - Optional shape username override
+ * @param {string|null} userAuthToken - User's personal auth token (null = use bot token)
  * @returns {Promise<string>} AI response
  */
-async function generateShapesResponse(channelId, messageContent, userId, context, shape_username_override) {
+async function generateShapesResponse(channelId, messageContent, userId, context, userAuthToken = null) {
   let aiMessage;
-  const shapeToUse = shape_username_override || shapesUsername;
   
   // Check which client implementation to use
   if (shapesClient === 'openai' && isOpenAiSdkAvailable) {
     // OpenAI SDK implementation (recommended)
     try {
-      const response = await shapes.chat.completions.create({
-        model: `shapesinc/${shapeToUse}`,
+      let clientToUse;
+      
+      if (userAuthToken) {
+        // User is authenticated - use X-App-ID and X-User-Auth headers
+        clientToUse = new OpenAI({
+          apiKey: "not-needed",
+          baseURL: shapesApiUrl,
+          defaultHeaders: {
+            "X-App-ID": process.env.APP_ID || process.env.SHAPESINC_APP_ID,
+            "X-User-Auth": userAuthToken
+          }
+        });
+      } else {
+        // Use bot's default API key
+        clientToUse = shapes;
+      }
+      
+      const response = await clientToUse.chat.completions.create({
+        model: HARDLOCKED_MODEL,
         messages: [
           { role: "user", content: messageContent }
         ],
@@ -289,14 +243,14 @@ async function generateShapesResponse(channelId, messageContent, userId, context
       
       // Only fallback to axios if it's not a critical error
       if (!error.message.includes('unauthorized') && !error.message.includes('invalid_api_key')) {
-        aiMessage = await useAxiosImplementation(channelId, messageContent, userId, shapeToUse);
+        aiMessage = await useAxiosImplementation(channelId, messageContent, userId, userAuthToken);
       } else {
         throw error; // Re-throw authorization errors
       }
     }
   } else {
     // Axios implementation (original or fallback)
-    aiMessage = await useAxiosImplementation(channelId, messageContent, userId, shapeToUse);
+    aiMessage = await useAxiosImplementation(channelId, messageContent, userId, userAuthToken);
   }
   
   // Store response in context
@@ -317,14 +271,14 @@ async function generateShapesResponse(channelId, messageContent, userId, context
  * @param {string} channelId - Channel ID
  * @param {Array} messageContent - User message content array
  * @param {string} userId - User ID
- * @param {string} shapeToUse - Shape username
+ * @param {string|null} userAuthToken - User's personal auth token (null = use bot token)
  * @returns {Promise<string>} AI response
  */
-async function useAxiosImplementation(channelId, messageContent, userId, shapeToUse) {
+async function useAxiosImplementation(channelId, messageContent, userId, userAuthToken = null) {
   try {
     // Format request payload for the Shapes API
     const payload = {
-      model: `shapesinc/${shapeToUse}`,
+      model: HARDLOCKED_MODEL,
       messages: [
         { role: "user", content: messageContent }
       ],
@@ -333,7 +287,29 @@ async function useAxiosImplementation(channelId, messageContent, userId, shapeTo
       channel_id: channelId
     };
     
-    const response = await shapesApi.post('/chat/completions', payload);
+    // Configure headers based on authentication type
+    let requestConfig;
+    
+    if (userAuthToken) {
+      // User is authenticated - use X-App-ID and X-User-Auth headers
+      requestConfig = {
+        headers: {
+          'X-App-ID': process.env.APP_ID || process.env.SHAPESINC_APP_ID,
+          'X-User-Auth': userAuthToken,
+          'Content-Type': 'application/json',
+        }
+      };
+    } else {
+      // Use bot's default API key
+      requestConfig = {
+        headers: {
+          'Authorization': `Bearer ${shapesApiKey}`,
+          'Content-Type': 'application/json',
+        }
+      };
+    }
+    
+    const response = await axios.post(`${shapesApiUrl}/chat/completions`, payload, requestConfig);
     
     // Handle different response formats
     if (response.data && response.data.content) {
@@ -376,18 +352,7 @@ function shouldRespondRandomly() {
   return Math.random() < 0.2;
 }
 
-// On startup, try to load from DB
-(async () => {
-  try {
-    const dbUsername = await db.getShapeUsername();
-    if (dbUsername) {
-      shapesUsername = dbUsername;
-      console.log(`[aiService] Loaded shape username from DB: ${shapesUsername}`);
-    }
-  } catch (e) {
-    console.warn('[aiService] Could not load shape username from DB:', e.message);
-  }
-})();
+// Startup: no per-shape loading necessary with hardlocked model
 
 const mainOwnerId = process.env.OWNER_ID;
 
@@ -425,12 +390,5 @@ module.exports = {
   setShapesClient,
   getShapesClient,
   isOpenAiSdkAvailable,
-  setShapeUsername,
-  getShapeUsername,
   isOwner,
-  setAutoUpdateNickname,
-  getAutoUpdateNickname,
-  getEffectiveChannelConfig,
-  setShowShapeNameInResponses,
-  getShowShapeNameInResponses
-}; 
+};

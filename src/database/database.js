@@ -1,126 +1,150 @@
-const { MongoClient } = require('mongodb');
+const { Pool } = require('pg');
 
-const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri, { useUnifiedTopology: true });
-let db;
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set.');
+}
+
+const pool = new Pool({ 
+  connectionString,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 async function connectDb() {
   try {
-    await client.connect();
-    db = client.db();
-    // Ensure indexes for uniqueness
-    await db.collection('blacklisted_users').createIndex({ user_id: 1 }, { unique: true });
-    await db.collection('blacklisted_channels').createIndex({ channel_id: 1 }, { unique: true });
-    await db.collection('active_channels').createIndex({ channel_id: 1 }, { unique: true });
-    console.log('Connected to MongoDB database');
+    // Initialize schema and tables if they do not exist
+    await pool.query(`
+      create table if not exists blacklisted_users (
+        user_id text primary key,
+        blacklisted_at timestamptz default now()
+      );
+      create table if not exists blacklisted_channels (
+        channel_id text primary key,
+        blacklisted_at timestamptz default now()
+      );
+      create table if not exists active_channels (
+        channel_id text primary key,
+        activated_at timestamptz default now()
+      );
+      create table if not exists config (
+        key text primary key,
+        value jsonb
+      );
+      create table if not exists user_stats (
+        user_id text primary key,
+        message_count integer default 0,
+        first_message_at timestamptz default now(),
+        last_message_at timestamptz default now()
+      );
+      create table if not exists user_auth_tokens (
+        user_id text primary key,
+        auth_token text not null,
+        app_id text not null,
+        authenticated_at timestamptz default now(),
+        last_used_at timestamptz default now()
+      );
+    `);
+    console.log('Connected to Neon (Postgres)');
   } catch (err) {
-    console.error('Error connecting to MongoDB:', err.message);
+    console.error('Error connecting to Postgres:', err.message);
   }
 }
 connectDb();
 
 // Blacklist a user
 async function blacklistUser(userId) {
-  await db.collection('blacklisted_users').updateOne(
-    { user_id: userId },
-    { $set: { user_id: userId, blacklisted_at: new Date() } },
-    { upsert: true }
+  await pool.query(
+    `insert into blacklisted_users (user_id) values ($1)
+     on conflict (user_id) do update set blacklisted_at = excluded.blacklisted_at`,
+    [userId]
   );
   return { success: true, userId };
 }
 
 // Whitelist a user
 async function whitelistUser(userId) {
-  const res = await db.collection('blacklisted_users').deleteOne({ user_id: userId });
-  return { success: true, userId, changes: res.deletedCount };
+  const res = await pool.query('delete from blacklisted_users where user_id = $1', [userId]);
+  return { success: true, userId, changes: res.rowCount };
 }
 
 // Check if a user is blacklisted
 async function isUserBlacklisted(userId) {
-  const user = await db.collection('blacklisted_users').findOne({ user_id: userId });
-  return !!user;
+  const { rows } = await pool.query('select 1 from blacklisted_users where user_id = $1 limit 1', [userId]);
+  return rows.length > 0;
 }
 
 // Blacklist a channel
 async function blacklistChannel(channelId) {
-  await db.collection('blacklisted_channels').updateOne(
-    { channel_id: channelId },
-    { $set: { channel_id: channelId, blacklisted_at: new Date() } },
-    { upsert: true }
+  await pool.query(
+    `insert into blacklisted_channels (channel_id) values ($1)
+     on conflict (channel_id) do update set blacklisted_at = excluded.blacklisted_at`,
+    [channelId]
   );
   return { success: true, channelId };
 }
 
 // Whitelist a channel
 async function whitelistChannel(channelId) {
-  const res = await db.collection('blacklisted_channels').deleteOne({ channel_id: channelId });
-  return { success: true, channelId, changes: res.deletedCount };
+  const res = await pool.query('delete from blacklisted_channels where channel_id = $1', [channelId]);
+  return { success: true, channelId, changes: res.rowCount };
 }
 
 // Check if a channel is blacklisted
 async function isChannelBlacklisted(channelId) {
-  const channel = await db.collection('blacklisted_channels').findOne({ channel_id: channelId });
-  return !!channel;
+  const { rows } = await pool.query('select 1 from blacklisted_channels where channel_id = $1 limit 1', [channelId]);
+  return rows.length > 0;
 }
 
 // Set a channel as active
 async function activateChannel(channelId) {
-  await db.collection('active_channels').updateOne(
-    { channel_id: channelId },
-    { $set: { channel_id: channelId, activated_at: new Date() } },
-    { upsert: true }
+  await pool.query(
+    `insert into active_channels (channel_id) values ($1)
+     on conflict (channel_id) do update set activated_at = excluded.activated_at`,
+    [channelId]
   );
   return { success: true, channelId };
 }
 
 // Deactivate a channel
 async function deactivateChannel(channelId) {
-  const res = await db.collection('active_channels').deleteOne({ channel_id: channelId });
-  return { success: true, channelId, changes: res.deletedCount };
+  const res = await pool.query('delete from active_channels where channel_id = $1', [channelId]);
+  return { success: true, channelId, changes: res.rowCount };
 }
 
 // Check if a channel is active
 async function isChannelActive(channelId) {
-  const channel = await db.collection('active_channels').findOne({ channel_id: channelId });
-  return !!channel;
+  const { rows } = await pool.query('select 1 from active_channels where channel_id = $1 limit 1', [channelId]);
+  return rows.length > 0;
 }
 
 // Close database connection
 async function closeDatabase() {
-  await client.close();
+  await pool.end();
 }
 
 // --- SHAPE USERNAME CONFIG ---
 
 /**
- * Set the current shape username
- * @param {string} username
- * @returns {Promise<void>}
+ * (Removed) Shape username configuration – model is hardlocked
  */
-async function setShapeUsername(username) {
-  await db.collection('config').updateOne(
-    { key: 'shape_username' },
-    { $set: { key: 'shape_username', value: username } },
-    { upsert: true }
-  );
-}
 
 /**
  * Get the current shape username
  * @returns {Promise<string|null>}
  */
-async function getShapeUsername() {
-  const doc = await db.collection('config').findOne({ key: 'shape_username' });
-  return doc ? doc.value : null;
-}
+async function getShapeUsername() { return null; }
 
 /**
  * Get the list of owner IDs (excluding the main owner from env)
  * @returns {Promise<string[]>}
  */
 async function getOwners() {
-  const doc = await db.collection('config').findOne({ key: 'owners' });
-  return doc && Array.isArray(doc.value) ? doc.value : [];
+  const { rows } = await pool.query('select value from config where key = $1', ['owners']);
+  if (rows.length === 0) return [];
+  const value = rows[0].value;
+  return Array.isArray(value) ? value : [];
 }
 
 /**
@@ -129,10 +153,12 @@ async function getOwners() {
  * @returns {Promise<void>}
  */
 async function addOwner(userId) {
-  await db.collection('config').updateOne(
-    { key: 'owners' },
-    { $addToSet: { value: userId } },
-    { upsert: true }
+  const owners = await getOwners();
+  if (!owners.includes(userId)) owners.push(userId);
+  await pool.query(
+    `insert into config (key, value) values ($1, $2)
+     on conflict (key) do update set value = excluded.value`,
+    ['owners', JSON.stringify(owners)]
   );
 }
 
@@ -142,51 +168,129 @@ async function addOwner(userId) {
  * @returns {Promise<void>}
  */
 async function removeOwner(userId) {
-  await db.collection('config').updateOne(
-    { key: 'owners' },
-    { $pull: { value: userId } }
+  const owners = await getOwners();
+  const next = owners.filter(o => o !== userId);
+  await pool.query(
+    `insert into config (key, value) values ($1, $2)
+     on conflict (key) do update set value = excluded.value`,
+    ['owners', JSON.stringify(next)]
   );
 }
 
 /**
- * Set the shape and AI provider for a channel
- * @param {string} channelId
- * @param {object} config - { shape_username?: string, ai_provider?: string }
+ * (Removed) Per-channel shape config – not applicable with hardlocked model
+ */
+
+// --- USER STATS & MESSAGE COUNTING ---
+
+/**
+ * Get user message count
+ * @param {string} userId
+ * @returns {Promise<number>}
+ */
+async function getUserMessageCount(userId) {
+  const { rows } = await pool.query('select message_count from user_stats where user_id = $1', [userId]);
+  return rows.length > 0 ? rows[0].message_count : 0;
+}
+
+/**
+ * Increment user message count
+ * @param {string} userId
+ * @returns {Promise<number>} New message count
+ */
+async function incrementUserMessageCount(userId) {
+  const { rows } = await pool.query(
+    `insert into user_stats (user_id, message_count, last_message_at) 
+     values ($1, 1, now()) 
+     on conflict (user_id) 
+     do update set message_count = user_stats.message_count + 1, last_message_at = now()
+     returning message_count`,
+    [userId]
+  );
+  return rows[0].message_count;
+}
+
+/**
+ * Reset user message count (for testing)
+ * @param {string} userId
  * @returns {Promise<void>}
  */
-async function setChannelShapeConfig(channelId, config) {
-  await db.collection('channel_shape_config').updateOne(
-    { channel_id: channelId },
-    { $set: { channel_id: channelId, ...config } },
-    { upsert: true }
+async function resetUserMessageCount(userId) {
+  await pool.query('delete from user_stats where user_id = $1', [userId]);
+}
+
+// --- USER AUTHENTICATION TOKENS ---
+
+/**
+ * Store user authentication token
+ * @param {string} userId
+ * @param {string} authToken
+ * @param {string} appId
+ * @returns {Promise<void>}
+ */
+async function storeUserAuthToken(userId, authToken, appId) {
+  await pool.query(
+    `insert into user_auth_tokens (user_id, auth_token, app_id, last_used_at) 
+     values ($1, $2, $3, now()) 
+     on conflict (user_id) 
+     do update set auth_token = excluded.auth_token, app_id = excluded.app_id, last_used_at = now()`,
+    [userId, authToken, appId]
   );
 }
 
 /**
- * Get the shape and AI provider config for a channel
- * @param {string} channelId
- * @returns {Promise<object|null>} { shape_username, ai_provider }
+ * Get user authentication token
+ * @param {string} userId
+ * @returns {Promise<string|null>}
  */
-async function getChannelShapeConfig(channelId) {
-  const doc = await db.collection('channel_shape_config').findOne({ channel_id: channelId });
-  if (!doc) return null;
-  return {
-    shape_username: doc.shape_username || null,
-    ai_provider: doc.ai_provider || null
-  };
+async function getUserAuthToken(userId) {
+  const { rows } = await pool.query('select auth_token from user_auth_tokens where user_id = $1', [userId]);
+  return rows.length > 0 ? rows[0].auth_token : null;
 }
 
 /**
- * Remove the shape/AI config for a channel (reset to global default)
- * @param {string} channelId
+ * Check if user is authenticated
+ * @param {string} userId
+ * @returns {Promise<boolean>}
+ */
+async function isUserAuthenticated(userId) {
+  const { rows } = await pool.query('select 1 from user_auth_tokens where user_id = $1 limit 1', [userId]);
+  return rows.length > 0;
+}
+
+/**
+ * Update last used timestamp for auth token
+ * @param {string} userId
  * @returns {Promise<void>}
  */
-async function removeChannelShapeConfig(channelId) {
-  await db.collection('channel_shape_config').deleteOne({ channel_id: channelId });
+async function updateAuthTokenLastUsed(userId) {
+  await pool.query('update user_auth_tokens set last_used_at = now() where user_id = $1', [userId]);
+}
+
+/**
+ * Remove user authentication token
+ * @param {string} userId
+ * @returns {Promise<void>}
+ */
+async function revokeUserAuthToken(userId) {
+  await pool.query('delete from user_auth_tokens where user_id = $1', [userId]);
+}
+
+/**
+ * Get user auth info (token + app_id)
+ * @param {string} userId
+ * @returns {Promise<{authToken: string, appId: string}|null>}
+ */
+async function getUserAuthInfo(userId) {
+  const { rows } = await pool.query(
+    'select auth_token, app_id from user_auth_tokens where user_id = $1', 
+    [userId]
+  );
+  return rows.length > 0 ? { authToken: rows[0].auth_token, appId: rows[0].app_id } : null;
 }
 
 module.exports = {
-  client,
+  client: pool,
   blacklistUser,
   whitelistUser,
   isUserBlacklisted,
@@ -197,12 +301,19 @@ module.exports = {
   deactivateChannel,
   isChannelActive,
   closeDatabase,
-  setShapeUsername,
   getShapeUsername,
   getOwners,
   addOwner,
   removeOwner,
-  setChannelShapeConfig,
-  getChannelShapeConfig,
-  removeChannelShapeConfig
+  // User stats & message counting
+  getUserMessageCount,
+  incrementUserMessageCount,
+  resetUserMessageCount,
+  // User authentication tokens
+  storeUserAuthToken,
+  getUserAuthToken,
+  isUserAuthenticated,
+  updateAuthTokenLastUsed,
+  revokeUserAuthToken,
+  getUserAuthInfo
 }; 

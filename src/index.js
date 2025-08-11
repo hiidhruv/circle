@@ -31,19 +31,21 @@ client.once(Events.ClientReady, async (readyClient) => {
   // Set custom status
   readyClient.user.setPresence({
     status: 'online',
-    activities: [{ name: 'circling', type: 4 }] // 4 = Custom Status
+    activities: [{ name: 'gpt 5', type: 4 }] // 4 = Custom Status
   });
 
   // Load all commands
   await commandHandler.loadCommands(readyClient);
 });
 
-// Handle interactions (slash commands and buttons)
+// Handle interactions (slash commands, buttons, and modals)
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isCommand()) {
     await commandHandler.handleCommandInteraction(interaction);
   } else if (interaction.isButton()) {
     await commandHandler.handleButtonInteraction(interaction);
+  } else if (interaction.isModalSubmit()) {
+    await commandHandler.handleModalSubmission(interaction);
   }
 });
 

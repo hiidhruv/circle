@@ -26,7 +26,7 @@ module.exports = {
       
       if (subcommand === 'status') {
         return interaction.reply({
-          content: `Using **Shapes Inc API**`,
+          content: `Using **Shapes Inc API** with model **shapesinc/openaigpt5**`,
           ephemeral: false
         });
       }
@@ -41,12 +41,11 @@ module.exports = {
         
         // Get API key status from environment variables
         const shapesKeyStatus = process.env.SHAPESINC_API_KEY ? 'Available' : (process.env.SHAPES_API_KEY ? 'Available (legacy name)' : 'Missing');
-        const shapesUsername = process.env.SHAPESINC_SHAPE_USERNAME || 'Not configured';
         
         return interaction.reply({
           content: `## API Configuration Check
 - Shapes API Key: **${shapesKeyStatus}**
-- Shape Username: **${shapesUsername}**
+- Model: **shapesinc/openaigpt5**
 
 If the API key is missing, please check your .env file.`,
           ephemeral: true

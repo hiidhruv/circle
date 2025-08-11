@@ -9,14 +9,9 @@ const COMMANDS = [
     usage: '/about'
   },
   {
-    name: 'username',
-    description: 'How to get a shape\'s username',
-    usage: '/username'
-  },
-  {
-    name: 'shape',
-    description: 'Manage shape settings and configuration',
-    usage: '/shape [set|get|setchannel|resetchannel|channelinfo|add|oncreate|showname]'
+    name: 'api',
+    description: 'Check API status and configuration',
+    usage: '/api [status|debug]'
   },
   {
     name: 'trigger',
@@ -57,11 +52,6 @@ const COMMANDS = [
     name: 'deactivate',
     description: 'Deactivates the AI from responding to all messages in this channel',
     usage: '/deactivate'
-  },
-  {
-    name: 'api',
-    description: 'Check Shapes API information',
-    usage: '/api [status|debug]'
   },
   {
     name: 'commands',
